@@ -7,27 +7,29 @@ const API_KEY = process.env.CLAUDE_API_KEY || "";
 
 const app = express();
 
-// CORS explícito — funciona mesmo com Traefik na frente
-app.use(cors({
-  origin: "*",
-  methods: ["POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"]
-}));
+app.use(cors({ origin: "*", methods: ["POST", "OPTIONS"], allowedHeaders: ["Content-Type"] }));
+app.use(express.json({ limit: "20mb" })); // aumentado para suportar imagens em base64
 
-app.use(express.json());
-
-app.options("/analyze", cors()); // preflight explícito
+app.options("/analyze", cors());
 
 app.post("/analyze", function(req, res) {
-  const prompt = req.body && req.body.prompt;
-  if (!prompt) {
-    return res.status(400).json({ error: "Missing prompt" });
+  const { messages, system, prompt } = req.body;
+
+  // Suporta tanto o formato novo (messages + system) quanto o legado (prompt)
+  let apiMessages;
+  if (messages && Array.isArray(messages)) {
+    apiMessages = messages;
+  } else if (prompt) {
+    apiMessages = [{ role: "user", content: prompt }];
+  } else {
+    return res.status(400).json({ error: "Missing messages or prompt" });
   }
 
   const payload = JSON.stringify({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
-    messages: [{ role: "user", content: prompt }]
+    model: "claude-opus-4-5",   // usa Opus para análise de imagem e chat de qualidade
+    max_tokens: 1500,
+    ...(system ? { system: system } : {}),
+    messages: apiMessages
   });
 
   const options = {
@@ -46,7 +48,11 @@ app.post("/analyze", function(req, res) {
     let data = "";
     apiRes.on("data", function(chunk) { data += chunk; });
     apiRes.on("end", function() {
-      res.status(apiRes.statusCode).json(JSON.parse(data));
+      try {
+        res.status(apiRes.statusCode).json(JSON.parse(data));
+      } catch(e) {
+        res.status(500).json({ error: "Invalid response from Anthropic" });
+      }
     });
   });
 
