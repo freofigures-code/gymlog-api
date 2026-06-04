@@ -26,7 +26,7 @@ app.post("/analyze", function(req, res) {
   }
 
   const payload = JSON.stringify({
-    model: "claude-opus-4-5",   // usa Opus para análise de imagem e chat de qualidade
+    model: "claude-haiku-4-5-20251001",   // usa Opus para análise de imagem e chat de qualidade
     max_tokens: 1500,
     ...(system ? { system: system } : {}),
     messages: apiMessages
